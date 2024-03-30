@@ -1,0 +1,1 @@
+'''Implement GUI app through dash or streamlist allowing ease of use'''
