@@ -49,7 +49,6 @@ class CAPMAnalysis:
         self.last_date = self.monthly_returns.index.max()
         data_range_msg = f"Data Range: {self.first_date} to {self.last_date}"
         self.years_difference = (self.last_date - self.first_date).days / 365.25  
-        print(f"Number of years between: {self.years_difference} years")
 
         return data_range_msg
 
@@ -58,7 +57,6 @@ class CAPMAnalysis:
         X = sm.add_constant(self.monthly_returns[f'{self.benchmark} - RF'])
         y = self.monthly_returns[f'{self.ticker} - RF']
         model = sm.OLS(y, X).fit()
-        print(model.summary())
         
         self.results_df = pd.DataFrame({
             'Coefficient': model.params,
@@ -78,7 +76,6 @@ class CAPMAnalysis:
                 y = self.monthly_returns[f'{self.ticker} - RF'][-periods:]
                 
                 slope = np.polyfit(X, y, 1)[0]
-                print(f"{years} Year Beta: {slope:.2f}")
                 
                 beta_message = f"{years} Year Beta: {slope:.2f}\n"
                 beta_messages.append(beta_message)  # Append each message to the list
