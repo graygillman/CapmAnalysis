@@ -1,12 +1,17 @@
-import pandas as pd
+#Standard Libraries
+import os
+from datetime import date
+
+#Third Party Libraries
 import numpy as np
-from openpyxl import load_workbook
-from openpyxl.drawing.image import Image
+import pandas as pd
+import requests
 import statsmodels.api as sm
 import yfinance as yf
+from openpyxl import load_workbook
+from openpyxl.drawing.image import Image
 import plotly.graph_objects as go
-from datetime import date
-import os
+
 
 class CAPMAnalysis:
     def __init__(self, ticker, benchmark, risk_free, daily_or_monthly):
@@ -42,9 +47,12 @@ class CAPMAnalysis:
         self.monthly_returns.index = self.monthly_returns.index.date
         self.first_date = self.monthly_returns.index.min()
         self.last_date = self.monthly_returns.index.max()
-        print(f"Data range: {self.first_date} to {self.last_date}")
+        data_range_msg = f"Data Range: {self.first_date} to {self.last_date}"
         self.years_difference = (self.last_date - self.first_date).days / 365.25  
         print(f"Number of years between: {self.years_difference} years")
+
+        return data_range_msg
+
 
     def perform_regression(self):
         X = sm.add_constant(self.monthly_returns[f'{self.benchmark} - RF'])
@@ -58,8 +66,11 @@ class CAPMAnalysis:
             't-value': model.tvalues,
             'p-value': model.pvalues
         })
+        return self.results_df
 
     def find_beta(self):
+        beta_messages = []  # Initialize an empty list to store beta messages
+        beta_data = []
         for years in self.periods_in_years:
             if years < self.years_difference:
                 periods = years * 12
@@ -68,6 +79,18 @@ class CAPMAnalysis:
                 
                 slope = np.polyfit(X, y, 1)[0]
                 print(f"{years} Year Beta: {slope:.2f}")
+                
+                beta_message = f"{years} Year Beta: {slope:.2f}\n"
+                beta_messages.append(beta_message)  # Append each message to the list
+                            # Append year and beta value as a tuple to the beta_data list
+            
+            beta_data.append((f"{years} Year Beta", slope))
+
+        # Convert list of tuples into a pandas DataFrame
+        self.beta_df = pd.DataFrame(beta_data, columns=['Year', 'Beta'])
+        # Combine all messages into a single string, separated by newlines
+        combined_messages = "\n".join(beta_messages)
+        return combined_messages
 
     def save_to_excel(self, file_path=None):
         if file_path is None:
@@ -84,19 +107,21 @@ class CAPMAnalysis:
             self.ticker_df.to_excel(writer, sheet_name=self.ticker)
             self.benchmark_df.to_excel(writer, sheet_name=self.benchmark)
             self.rf_df.to_excel(writer, sheet_name=self.risk_free)
+            self.beta_df.to_excel(writer, sheet_name='Beta Analysis')
 
         workbook = load_workbook(file_path)
         
-        if 'OLS Results' in workbook.sheetnames:
-            sheet = workbook['OLS Results']
-        else:
-            sheet = workbook.create_sheet('OLS Results')
+        # if 'OLS Results' in workbook.sheetnames:
+        #     sheet = workbook['OLS Results']
+        # else:
+        #     sheet = workbook.create_sheet('OLS Results')
+        # img = Image(image_path)
+        # sheet.add_image(img, 'G2')
 
-        img = Image(image_path)
-        sheet.add_image(img, 'G2')
         workbook.save(file_path)
+        return file_path
 
-    def plot_regression(self, save_image=False, image_path=None):
+    def plot_regression(self, save_image=True, image_path=None):
         X = self.monthly_returns[f'{self.benchmark} - RF']
         y = self.monthly_returns[f'{self.ticker} - RF']
         
@@ -114,14 +139,33 @@ class CAPMAnalysis:
         if save_image:
             if image_path is None:
                 image_path = f"{self.ticker}/regression_plot.png"
+            os.makedirs(os.path.dirname(image_path), exist_ok=True)
             fig.write_image(image_path)
-        return fig
+
+        return fig, image_path
+    
+
+
+    def upload_to_web(self, image_path):
+        with open(image_path, 'rb') as image:
+            response = requests.post(
+                'https://api.imgbb.com/1/upload',
+                data={'key': '403c33d84032226e5659348864f8a16e'},
+                files={'image': image}
+            )
+            if response.status_code == 200:
+                return response.json()['data']['url']
+            else:
+                return None
+
+
+
     
     def calculate_rolling_beta(self):
         """
         Calculate rolling betas for 12, 6, and 3 month windows.
         """
-        self.window_sizes = [60, 24, 12, 6, 3]
+        self.window_sizes = [60, 24, 12, 6] #,3]
         
 
         X = sm.add_constant(self.monthly_returns[f'{self.benchmark} - RF'])
@@ -142,9 +186,11 @@ class CAPMAnalysis:
             # Store each rolling beta calculation in the DataFrame
             self.monthly_returns[f'Rolling Beta {window_size}M'] = rolling_beta
         
-        print("Rolling beta calculations completed.")
+  
 
-    def plot_rolling_beta(self):
+
+
+    def plot_rolling_beta(self, save_image=True, image_path=None):
         """
         Plot the rolling betas for 12, 6, and 3 month windows using Plotly.
         """
@@ -163,8 +209,14 @@ class CAPMAnalysis:
                         yaxis_title='Rolling Beta',
                         template='plotly_dark')  # Adjust the template as needed
 
-        # Show the figure
-        fig.show()
+        if save_image:
+            if image_path is None:
+                image_path = f"{self.ticker}/rollingbeta_plot.png"
+            os.makedirs(os.path.dirname(image_path), exist_ok=True)
+            fig.write_image(image_path)
+        return fig, image_path
+    
+        
 
 if __name__ == "__main__":
     benchmark = input('Enter your benchmark ticker (^GSPC): ')
@@ -177,10 +229,9 @@ if __name__ == "__main__":
     analysis.calculate_returns()
     analysis.perform_regression()
     analysis.find_beta()
-    analysis.plot_regression()
-    analysis.save_to_excel()
+    fig1, image_path1 = analysis.plot_regression()
     analysis.calculate_rolling_beta()  # For example, a 12-month rolling window
-    analysis.plot_rolling_beta()
-
-'''NOTES
-Add a rolling Beta'''
+    fig2, image_path2 = analysis.plot_rolling_beta()
+    analysis.save_to_excel()
+    fig1.show()
+    fig2.show()
