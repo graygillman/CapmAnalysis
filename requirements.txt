@@ -1,0 +1,10 @@
+numpy==1.25.2
+pandas==2.2.0
+requests==2.31.0
+statsmodels==0.14.0
+yfinance==0.2.36
+openpyxl==3.1.2
+plotly==5.18.0
+streamlit==1.31.1
+Flask==3.0.2
+twilio==8.11.0
