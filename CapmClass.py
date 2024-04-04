@@ -90,13 +90,13 @@ class CAPMAnalysis:
         return combined_messages
 
     def save_to_excel(self, file_path=None):
-        # if file_path is None:
-        #     directory = os.path.join('.', self.ticker) 
-        #     os.makedirs(directory, exist_ok=True)
-        #     file_path = os.path.join(directory, f'{self.ticker}_{self.word}_Data_CAPM_Analysis_{self.today}.xlsx')
+        if file_path is None:
+            directory = os.path.join('.', self.ticker) 
+            os.makedirs(directory, exist_ok=True)
+            file_path = os.path.join(directory, f'{self.ticker}_{self.word}_Data_CAPM_Analysis_{self.today}.xlsx')
         
-        # image_path = os.path.join(directory, "regression_plot.png")
-        # self.plot_regression(save_image=True, image_path=image_path)
+        image_path = os.path.join(directory, "regression_plot.png")
+        self.plot_regression(save_image=True, image_path=image_path)
 
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
             self.results_df.to_excel(writer, sheet_name='OLS Results')
